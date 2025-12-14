@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
-import "./booking.css";
+import "./Booking.css";
 import { format } from "date-fns";
 
 export default function BookingPage() {
