@@ -7,7 +7,7 @@ export default function BookingPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const stored = localStorage.getItem("selectedSlot");
+    const stored = localStorage.getItem("checkInSlot");
     if (stored) {
       setSlot(JSON.parse(stored));
     }
