@@ -1,25 +1,28 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import BookingForm from "../components/booking/BookingForm";
 
 export default function BookingPage() {
-  const [slot, setSlot] = useState(null);
-  const navigate = useNavigate();
+  const [slotData, setSlotData] = useState(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("checkInSlot");
-    if (stored) {
-      setSlot(JSON.parse(stored));
+    const slot = localStorage.getItem("checkInSlot");
+    const date = localStorage.getItem("selectedDate");
+
+    if (slot && date) {
+      setSlotData({
+        date,
+        slot
+      });
     }
   }, []);
 
-  if (!slot) {
+  if (!slotData) {
     return (
       <div style={{ padding: "20px" }}>
         <h2>No Slot Selected</h2>
-        <p>
-          Please select a date and time slot before filling booking details.
-        </p>
+        <p>Please select a date and time slot before filling booking details.</p>
+
         <Link
           to="/booking/slot"
           style={{
@@ -37,9 +40,5 @@ export default function BookingPage() {
     );
   }
 
-  return (
-       <div>
-      <BookingForm selectedSlot={slot} />
-    </div>
-  );
+  return <BookingForm selectedSlot={slotData} />;
 }
