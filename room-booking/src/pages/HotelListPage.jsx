@@ -6,6 +6,9 @@ import "./hotel.css";
 import room1 from "../../src/assets/img1.jpeg";
 import room2 from "../../src/assets/img2.jpeg"
 import { format, parseISO } from "date-fns";
+import { db } from "../services/firebase";
+import { doc, setDoc } from "firebase/firestore";
+
 
 export default function HotelListPage() {
   const selectedDate = localStorage.getItem("selectedDate");
@@ -49,12 +52,19 @@ export default function HotelListPage() {
   };
 
   // HANDLE PHONE SUBMIT
-  const handlePhoneSubmit = () => {
+  const handlePhoneSubmit = async() => {
     if (!phone || phone.length !== 10) {
       alert("Please enter a valid 10-digit mobile number");
       return;
     }
-
+    // 🔑 UPDATE SLOT WITH PHONE NUMBER
+     await setDoc(
+    doc(db, "bookings", selectedDate, "slots", checkInSlot),
+    {
+      phone: phone
+    },
+    { merge: true }
+    );
     // Save data for next page
     localStorage.setItem("userPhone", phone);
     localStorage.setItem("selectedHotelName", selectedHotel.name);
