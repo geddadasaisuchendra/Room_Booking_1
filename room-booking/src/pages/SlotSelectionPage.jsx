@@ -137,12 +137,6 @@ export default function SlotSelectionPage() {
      HANDLE SLOT CLICK → LOCK SLOT PENDING
   ------------------------------------------ */
   const handleSelectSlot = async (slot) => {
-    if (!phone) {
-      alert("Please enter your phone number before booking.");
-      window.location.href = "/booking/phone";
-      return;
-    }
-
     const slotRef = doc(db, "bookings", selectedDate, "slots", slot);
     const snap = await getDoc(slotRef);
 
