@@ -28,14 +28,15 @@ export default function Header() {
           </div>
 
           {/* TITLES */}
-          <div className="temple-title text-white fw-bold mt-2">
-            JAGADGURU SRIMANMADHAVACHARYA MOOLA MAHASANSTHANAM
-          </div>
 
           <div className="temple-subtitle fw-bold">
-            SRI RAGHAVENDRA SWAMY MATHA, MANTRALAYAM
+            BHEEMA GRAND RESIDENCY , MANTRALAYAM
           </div>
-
+          
+          <div className="temple-title text-white fw-bold mt-2">
+            Rooted in history, built for comfort.
+          </div>
+          
         </div>
       </header>
     </>
