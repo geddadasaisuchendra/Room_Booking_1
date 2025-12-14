@@ -4,16 +4,6 @@ import logo from "../../assets/logo.png"; // placeholder logo
 export default function Header() {
   return (
     <>
-      {/* Top Language Bar */}
-      <div className="lang-bar">
-        <div className="container d-flex justify-content-end gap-3 text-white small">
-          <span>EN</span>
-          <span>हि</span>
-          <span>ತೇ</span>
-          <span>త</span>
-        </div>
-      </div>
-
       {/* Main Temple Header */}
       <header className="temple-header">
         <div className="container d-flex flex-column align-items-center text-center py-3">
