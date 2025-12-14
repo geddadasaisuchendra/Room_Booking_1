@@ -21,7 +21,7 @@ export default function HomePage() {
 
         {/* Rules ABOVE calendar */}
         <div className="rules-wrapper">
-          <h4 className="rules-title">Kind attention to Customers visiting Bheema Grand Residency</h4>
+          <h4 className="rules-title">Kind attention to customers visiting Bheema Grand Residency</h4>
           <div className="rules-box">
           <ul>
             <li>Booking can be done for one to two days.</li>
