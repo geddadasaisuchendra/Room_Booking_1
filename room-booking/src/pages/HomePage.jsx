@@ -31,6 +31,7 @@ export default function HomePage() {
             <li>Each room can accommodate two to four adults.</li>
             <li>No extra bed or bedding will be provided.</li>
             <li>You may book rooms between 3 and 15 days in advance.</li>
+            <li>if bookings are in pending state please wait for 5mins</li>
             <li>A successful payment does not guarantee a booking. Wait for the confirmation message shown on the screen. Return to this page after completing your UPI payment.</li>
             <li>A refundable deposit equal to one day's room tariff must be paid in cash at the time of check-in.</li>
             <li>Bima Grand Residency reserves the right to cancel any booking at any time and refund the amount in full.</li>
