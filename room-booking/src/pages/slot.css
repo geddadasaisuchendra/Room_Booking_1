@@ -1,0 +1,85 @@
+.slot-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  text-align: center;
+}
+
+.slot-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #00b300;
+}
+
+.slot-date {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+.stay-info {
+  font-size: 14px;
+  color: #555;
+}
+
+.change-date-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px 18px;
+  width: fit-content;
+  margin: 20px auto;
+  text-align: left;
+  font-size: 14px;
+}
+
+.slot-group-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 20px 0 10px;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.slot-btn {
+  background: linear-gradient(45deg, #3fae3f, #058a29);
+  border: none;
+  color: white;
+  padding: 12px 0;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.slot-btn:hover {
+  background: linear-gradient(45deg, #4cc74c, #0a9d32);
+  transform: translateY(-2px);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  .slot-btn {
+    padding: 10px 0;
+    font-size: 14px;
+  }
+}
+.available-slot {
+  background: linear-gradient(45deg, #3fae3f, #058a29) !important;
+}
+
+.pending-slot {
+  background: #f4c542 !important;
+  cursor: not-allowed !important;
+}
+
+.full-slot {
+  background: #d9534f !important;
+  cursor: not-allowed !important;
+}

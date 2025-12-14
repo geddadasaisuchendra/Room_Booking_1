@@ -1,0 +1,65 @@
+.preview-container {
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+  background: white;
+}
+
+.preview-title {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.preview-section {
+  margin-bottom: 18px;
+}
+
+.preview-section h3 {
+  margin-bottom: 8px;
+  font-size: 18px;
+  color: #444;
+}
+
+.preview-section p {
+  margin: 3px 0;
+  font-size: 15px;
+}
+
+.preview-buttons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.edit-btn,
+.confirm-btn {
+  padding: 10px 10px;
+  font-size: 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.edit-btn {
+  background: #d9534f;
+  color: white;
+}
+
+.confirm-btn {
+  background: #0a8a28;
+  color: white;
+}
+
+/* MOBILE RESPONSIVE */
+@media (max-width: 480px) {
+  .preview-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .edit-btn,
+  .confirm-btn {
+    width: 100%;
+  }
+}

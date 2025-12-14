@@ -1,0 +1,47 @@
+.page-title { font-size: 28px; margin-bottom: 18px; font-weight:700; }
+.rules-card { background: #fff; border-radius: 8px; }
+.rules-card h5 { margin-bottom: 10px; }
+.rules-card ul { padding-left: 18px; }
+.brand-title { font-weight:700; font-size:16px; line-height:1; }
+.brand-sub { font-size:12px; color:#6c757d; line-height:1; }
+.site-header .navbar-brand img { object-fit: contain; }
+/* ==============================
+   RULES SECTION STYLING
+================================= */
+
+.rules-wrapper {
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+.rules-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 20px;
+  color: #7a2500;   /* brownish-red like reference site */
+}
+
+.rules-box {
+  padding: 20px 25px;
+  display: inline-block;
+  max-width: 750px;
+  text-align: left;
+  color: #802702;
+}
+
+.rules-box ul{
+  padding-left: 20px;
+}
+
+.rules-box li {
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+/* MOBILE OPTIMIZATION */
+@media (max-width: 768px) {
+  .rules-box {
+    max-width: 100%;
+    width: 100%;
+  }
+}

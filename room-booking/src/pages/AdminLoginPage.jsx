@@ -1,0 +1,9 @@
+import AdminLoginForm from "../components/admin/AdminLoginForm";
+
+export default function AdminLoginPage() {
+  return (
+    <div className="container mt-5">
+      <AdminLoginForm />
+    </div>
+  );
+}
