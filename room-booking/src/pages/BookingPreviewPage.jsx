@@ -67,7 +67,6 @@ export default function BookingPreviewPage() {
 
           {form.pan && <p><b>PAN:</b> {form.pan}</p>}
           {form.idProof && <p><b>Address Proof:</b> {form.idProof}</p>}
-          <p><b>ID No:</b> {form.idNumber}</p>
         </div>
 
         {/* BUTTONS */}
