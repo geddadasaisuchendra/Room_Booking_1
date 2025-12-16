@@ -11,7 +11,7 @@ import AdminLoginPage from "./pages/AdminLoginPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import HotelListPage from "./pages/HotelListPage";
 import BookingPreviewPage from "./pages/BookingPreviewPage"
-
+import AdminPanel from "./pages/AdminPanel";
 export default function AppRouter() {
   return (
     <Routes>
@@ -26,7 +26,14 @@ export default function AppRouter() {
 
       {/* Admin Pages */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
-
+      <Route
+        path="/admin/panel"
+        element={
+          <ProtectedRoute>
+            <AdminPanel />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin/dashboard"
         element={
