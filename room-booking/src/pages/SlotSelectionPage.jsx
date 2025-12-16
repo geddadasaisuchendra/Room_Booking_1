@@ -7,9 +7,9 @@ import { format, addHours, parseISO } from "date-fns";
 import { db } from "../services/firebase";
 import {
   collection,
-  getDoc,
   getDocs,
   doc,
+  getDoc,
   setDoc,
   serverTimestamp,
   Timestamp
@@ -17,112 +17,82 @@ import {
 
 export default function SlotSelectionPage() {
   const selectedDate = localStorage.getItem("selectedDate");
-  const phone = localStorage.getItem("userPhone"); // user phone (required)
 
   const [slotStatus, setSlotStatus] = useState({});
   const [loading, setLoading] = useState(true);
 
   const amSlots = [
-    "02 AM", "03 AM", "04 AM", "05 AM", "06 AM", "07 AM",
-    "08 AM", "09 AM", "10 AM", "11 AM"
+    "02 AM","03 AM","04 AM","05 AM","06 AM","07 AM",
+    "08 AM","09 AM","10 AM","11 AM"
   ];
 
   const pmSlots = [
-    "12 PM", "01 PM", "02 PM", "03 PM", "04 PM", "05 PM",
-    "06 PM", "07 PM", "08 PM", "09 PM", "10 PM", "11 PM"
+    "12 PM","01 PM","02 PM","03 PM","04 PM","05 PM",
+    "06 PM","07 PM","08 PM","09 PM","10 PM","11 PM"
   ];
 
-  /* -----------------------------------------
+  /* ------------------------------------------------
      REDIRECT IF DATE NOT SELECTED
-  ------------------------------------------ */
+  -------------------------------------------------*/
   useEffect(() => {
     if (!selectedDate) window.location.href = "/";
   }, [selectedDate]);
 
-  /* -----------------------------------------
-     AUTO-CREATE slots in Firestore
-  ------------------------------------------ */
-  async function ensureSlotsExist(date) {
-    const allSlots = [...amSlots, ...pmSlots];
-
-    for (let slot of allSlots) {
-      const slotRef = doc(db, "bookings", date, "slots", slot);
-      const snap = await getDoc(slotRef);
-
-      if (!snap.exists()) {
-        await setDoc(slotRef, {
-          status: "available",
-          phone: null,
-          expiry: null
-        });
-      }
-    }
-  }
-
-  /* -----------------------------------------
-     AUTO-REMOVE EXPIRED pending slots
-  ------------------------------------------ */
+  /* ------------------------------------------------
+     CLEANUP EXPIRED PENDING SLOTS
+  -------------------------------------------------*/
   async function cleanupExpiredSlots() {
     const ref = collection(db, "bookings", selectedDate, "slots");
     const snap = await getDocs(ref);
-
     const now = new Date();
 
-    for (const item of snap.docs) {
-      const data = item.data();
-
-      if (data.status === "pending" && data.expiry) {
-        if (data.expiry.toDate() < now) {
-          // EXPIRED → make available again
-          await setDoc(
-            doc(db, "bookings", selectedDate, "slots", item.id),
-            {
-              status: "available",
-              phone: null,
-              expiry: null
-            },
-            { merge: true }
-          );
-        }
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      if (data.status === "pending" && data.expiry?.toDate() < now) {
+        await setDoc(
+          doc(db, "bookings", selectedDate, "slots", docSnap.id),
+          {
+            status: "available",
+            expiry: null
+          },
+          { merge: true }
+        );
       }
     }
   }
 
-  /* -----------------------------------------
-     LOAD SLOT STATUSES FROM DB
-  ------------------------------------------ */
+  /* ------------------------------------------------
+     LOAD SLOT STATUSES (ONLY EXISTING DOCS)
+  -------------------------------------------------*/
   async function loadSlots() {
     const ref = collection(db, "bookings", selectedDate, "slots");
     const snapshot = await getDocs(ref);
 
-    const status = {};
+    const statusMap = {};
     snapshot.forEach((docSnap) => {
-      status[docSnap.id] = docSnap.data().status;
+      statusMap[docSnap.id] = docSnap.data().status;
     });
 
-    setSlotStatus(status);
+    setSlotStatus(statusMap);
   }
 
-  /* -----------------------------------------
-     INIT: create slots + clear expired + load
-  ------------------------------------------ */
+  /* ------------------------------------------------
+     INIT
+  -------------------------------------------------*/
   useEffect(() => {
     async function init() {
-      if (!selectedDate) return;
-
       setLoading(true);
-      await ensureSlotsExist(selectedDate);
-      await cleanupExpiredSlots();  // 🔥 VERY IMPORTANT
+      await cleanupExpiredSlots();
       await loadSlots();
       setLoading(false);
     }
 
-    init();
+    if (selectedDate) init();
   }, [selectedDate]);
 
-  /* -----------------------------------------
+  /* ------------------------------------------------
      SLOT TIME CONVERSION
-  ------------------------------------------ */
+  -------------------------------------------------*/
   const convertTo24 = (slot) => {
     const [hour, meridiem] = slot.split(" ");
     let h = parseInt(hour);
@@ -133,9 +103,9 @@ export default function SlotSelectionPage() {
     return h;
   };
 
-  /* -----------------------------------------
-     HANDLE SLOT CLICK → LOCK SLOT PENDING
-  ------------------------------------------ */
+  /* ------------------------------------------------
+     HANDLE SLOT CLICK → LOCK SLOT (NO PHONE HERE)
+  -------------------------------------------------*/
   const handleSelectSlot = async (slot) => {
     const slotRef = doc(db, "bookings", selectedDate, "slots", slot);
     const snap = await getDoc(slotRef);
@@ -148,18 +118,14 @@ export default function SlotSelectionPage() {
         return;
       }
 
-      // Check if pending but NOT expired
-      if (data.status === "pending" && data.expiry) {
-        const expiryTime = data.expiry.toDate();
-        if (expiryTime > new Date()) {
-          alert("This slot is being booked by another user.");
-          return;
-        }
+      if (data.status === "pending" && data.expiry?.toDate() > new Date()) {
+        alert("This slot is currently being booked by another user.");
+        return;
       }
     }
 
-    // ✔ Lock slot for 5 minutes
-    const expiryTime = Timestamp.fromDate(
+    // 🔒 Lock slot for 5 minutes
+    const expiry = Timestamp.fromDate(
       new Date(Date.now() + 5 * 60 * 1000)
     );
 
@@ -167,14 +133,14 @@ export default function SlotSelectionPage() {
       slotRef,
       {
         status: "pending",
-        phone,
-        expiry: expiryTime,
+        phone:null,
+        expiry,
         createdAt: serverTimestamp()
       },
       { merge: true }
     );
 
-    // Store slot & checkout in localStorage
+    // Save booking info
     const checkinDateTime = new Date(selectedDate);
     checkinDateTime.setHours(convertTo24(slot), 0, 0, 0);
 
@@ -184,18 +150,17 @@ export default function SlotSelectionPage() {
     localStorage.setItem("checkOutDate", format(checkout, "yyyy-MM-dd"));
     localStorage.setItem("checkOutTime", format(checkout, "hh:mm a"));
 
-    // Redirect to hotel list page
     window.location.href = "/booking/hotels";
   };
 
-  /* -----------------------------------------
+  /* ------------------------------------------------
      UI HELPERS
-  ------------------------------------------ */
+  -------------------------------------------------*/
   const getSlotClass = (slot) => {
     const status = slotStatus[slot];
     if (status === "confirmed") return "full-slot";
     if (status === "pending") return "pending-slot";
-    return "available-slot";
+    return "available-slot"; // 🟢 default
   };
 
   const isDisabled = (slot) => {
@@ -209,13 +174,10 @@ export default function SlotSelectionPage() {
 
       <div className="slot-container">
         <h2 className="slot-title">Check In Slot Availability</h2>
-        <h3 className="slot-date">{format(parseISO(selectedDate), "dd MMM yyyy")}</h3>
+        <h3 className="slot-date">
+          {format(parseISO(selectedDate), "dd MMM yyyy")}
+        </h3>
         <p className="stay-info">23 Hours Stay</p>
-
-        <div className="change-date-card">
-          <div>📅 Change Date</div>
-          <small>[ {format(parseISO(selectedDate), "yyyy - MMM do")} ]</small>
-        </div>
 
         {loading && <p style={{ textAlign: "center" }}>Loading slots...</p>}
 
