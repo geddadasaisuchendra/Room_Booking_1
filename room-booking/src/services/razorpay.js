@@ -15,10 +15,12 @@ export const openRazorpayPayment = async ({
   date,
   timeSlot,
   onSuccess,
+  onFailure
 }) => {
   const res = await loadRazorpayScript();
   if (!res) {
     alert("Razorpay SDK failed to load.");
+    onFailure && onFailure();
     return;
   }
 
@@ -27,17 +29,32 @@ export const openRazorpayPayment = async ({
     amount: amount * 100,
     currency: "INR",
     name: "Room Booking",
-    description: "Booking Payment",
+    description: `Booking for ${date} (${timeSlot})`,
+
     prefill: {
       name,
-      contact: phone,
+      contact: phone
     },
 
     handler: function (response) {
+      // ✅ Payment success
       onSuccess(response);
     },
+
+    modal: {
+      ondismiss: function () {
+        // ❌ User closed popup
+        onFailure && onFailure();
+      }
+    }
   };
 
   const paymentObject = new window.Razorpay(options);
+
+  // ❌ Explicit payment failure
+  paymentObject.on("payment.failed", function () {
+    onFailure && onFailure();
+  });
+
   paymentObject.open();
 };
