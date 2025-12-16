@@ -1,4 +1,6 @@
 import BookingTable from "../components/admin/BookingTable";
+import Footer from "../components/layout/Footer";
+import Header from "../components/layout/Header";
 import { auth } from "../services/firebase";
 import { signOut } from "firebase/auth";
 
@@ -9,6 +11,8 @@ export default function AdminDashboardPage() {
   };
 
   return (
+    <>
+    <Header />
     <div className="container mt-4">
       <div className="d-flex justify-content-between align-items-center">
         <h2>Admin Dashboard</h2>
@@ -19,5 +23,7 @@ export default function AdminDashboardPage() {
 
       <BookingTable />
     </div>
+    <Footer />
+    </>
   );
 }
