@@ -116,7 +116,7 @@ export default function BookingTable() {
                 </td>
 
                 <td style={cell}>
-                  {b.date}
+                  {b.date} <br/> {b.selectedSlot}
                   <br />
                   <small>{b.checkInSlot}</small>
                 </td>
