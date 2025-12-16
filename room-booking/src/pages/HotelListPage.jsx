@@ -125,7 +125,7 @@ export default function HotelListPage() {
             className="book-now-btn"
             onClick={() =>
               handleBookClick({
-                name: "BIMA GRAND RESIDENCY",
+                name: "BHEEMA GRAND RESIDENCY",
                 type: room.type,
                 persons: room.persons,
                 price: room.price
