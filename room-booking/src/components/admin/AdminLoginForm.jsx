@@ -12,7 +12,7 @@ export default function AdminLoginForm() {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate("/admin/dashboard");
+      navigate("/admin/panel");
     } catch (err) {
       alert("Invalid email or password");
     }
