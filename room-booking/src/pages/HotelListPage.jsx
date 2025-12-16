@@ -7,8 +7,7 @@ import room1 from "../../src/assets/img1.jpeg";
 import room2 from "../../src/assets/img2.jpeg"
 import { format, parseISO } from "date-fns";
 import { db } from "../services/firebase";
-import { doc, setDoc } from "firebase/firestore";
-
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 export default function HotelListPage() {
   const selectedDate = localStorage.getItem("selectedDate");
@@ -20,30 +19,25 @@ export default function HotelListPage() {
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [phone, setPhone] = useState("");
 
-  const [hotels] = useState([
-    {
-      id: 1,
-      name: "BIMA GRAND RESIDENCY",
-      image: room1,
-      type: "AC",
-      persons: 2,
-      price: 2500,
-    },
-    {
-      id: 2,
-      name: "BIMA GRAND RESIDENCY",
-      image: room2,
-      type: "Non-AC",
-      persons: 2,
-      price: 1500,
-    },
-  ]);
+  const [rooms, setRooms] = useState([]);
 
   useEffect(() => {
     if (!selectedDate || !checkInSlot) {
       window.location.href = "/";
     }
   }, []);
+   
+  //Load Rooms
+  useEffect(() => {
+  async function loadRooms() {
+    const ref = doc(db, "hotelConfig", "main");
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      setRooms(snap.data().rooms || []);
+    }
+  }
+  loadRooms();
+}, []);
 
   // OPEN MODAL WITH HOTEL DATA
   const handleBookClick = (hotel) => {
@@ -57,14 +51,15 @@ export default function HotelListPage() {
       alert("Please enter a valid 10-digit mobile number");
       return;
     }
-    // 🔑 UPDATE SLOT WITH PHONE NUMBER
-     await setDoc(
+  // 🔑 UPDATE SLOT WITH PHONE NUMBER
+  await setDoc(
     doc(db, "bookings", selectedDate, "slots", checkInSlot),
     {
       phone: phone
     },
     { merge: true }
-    );
+  );
+  
     // Save data for next page
     localStorage.setItem("userPhone", phone);
     localStorage.setItem("selectedHotelName", selectedHotel.name);
@@ -91,10 +86,63 @@ export default function HotelListPage() {
           {checkOutTime}
         </p>
 
-        {/* HOTEL LIST */}
-        {hotels.map((hotel) => (
-          <HotelCard key={hotel.id} hotel={hotel} onBook={handleBookClick} />
-        ))}
+
+<div className="hotel-layout">
+
+  {/* LEFT IMAGE */}
+  <div className="hotel-image">
+    <img src={room1} alt="Hotel Room" />
+  </div>
+
+  {/* RIGHT ROOM CARDS */}
+  <div className="room-list">
+    <h3>BHEEMA GRAND RESIDENCY</h3>
+
+    {!rooms || rooms.length === 0 && (
+      <p>No room types available</p>
+    )}
+
+    {rooms && rooms.map((room, index) => (
+      <div key={index} className="room-card-horizontal">
+
+        {/* LEFT */}
+        <div className="room-left">
+          <div className="room-persons">
+            {room.persons} Persons
+          </div>
+          <div className="room-type">
+            {room.type}
+          </div>
+        </div>
+
+        {/* RIGHT */}
+        <div className="room-right">
+          <div className="room-price">
+            ₹{room.price}/-
+          </div>
+
+          <button
+            className="book-now-btn"
+            onClick={() =>
+              handleBookClick({
+                name: "BIMA GRAND RESIDENCY",
+                type: room.type,
+                persons: room.persons,
+                price: room.price
+              })
+            }
+          >
+            Book Now
+          </button>
+        </div>
+
+      </div>
+    ))}
+  </div>
+
+</div>
+
+        
       </div>
 
       {/* PHONE NUMBER MODAL */}
