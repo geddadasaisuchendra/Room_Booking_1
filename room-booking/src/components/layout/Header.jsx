@@ -1,5 +1,5 @@
 import React from "react";
-import logo from "../../assets/logo.png"; // placeholder logo
+import logo from "../../assets/s2.png"; // placeholder logo
 
 export default function Header() {
   return (
