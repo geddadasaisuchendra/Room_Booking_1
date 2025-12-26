@@ -180,8 +180,8 @@ export default function PaymentPage() {
 
            // 🔔 SEND USER EMAIL
             emailjs.send(
-              import.meta.env.Email_Service_ID,
-              import.meta.env.Email_User_template_ID, // USER TEMPLATE
+              import.meta.env.VITE_Email_Service_ID,
+              import.meta.env.VITE_Email_User_template_ID, // USER TEMPLATE
               {
                 user_name: form.name,
                 user_email: form.email,
@@ -195,13 +195,13 @@ export default function PaymentPage() {
                 amount,
                 payment_id: paymentId
               },
-              "lUER1WdBTQbXUpHwh"
+              import.meta.env.VITE_Email_APIkey
             );
 
             // 🔔 SEND ADMIN EMAIL
             emailjs.send(
-              import.meta.env.Email_Service_ID,
-              import.meta.env.Email_Admin_template_ID, // ADMIN TEMPLATE
+              import.meta.env.VITE_Email_Service_ID,
+              import.meta.env.VITE_Email_Admin_template_ID, // ADMIN TEMPLATE
               {
                 user_name: form.name,
                 user_email: form.email,
@@ -213,7 +213,7 @@ export default function PaymentPage() {
                 amount,
                 payment_id: paymentId
               },
-              import.meta.env.Email_APIkey
+              import.meta.env.VITE_Email_APIkey
             );
 
 
