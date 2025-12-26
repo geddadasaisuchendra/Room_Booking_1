@@ -1,13 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
-import { useNavigate } from "react-router-dom";
-import { db } from "../services/firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import AdminHotelConfig from "./adminhotelConfig";
+import { db, auth } from "../services/firebase";
+import { deleteField } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  getDoc
+} from "firebase/firestore";
 import { signOut } from "firebase/auth";
-import { auth } from "../services/firebase";
-import "../styles/global.css"
+import AdminHotelConfig from "./adminhotelConfig";
+
 const ALL_SLOTS = [
   "02 AM","03 AM","04 AM","05 AM","06 AM","07 AM",
   "08 AM","09 AM","10 AM","11 AM",
@@ -18,18 +21,34 @@ const ALL_SLOTS = [
 export default function AdminPanel() {
   const [date, setDate] = useState("");
   const [slot, setSlot] = useState("");
+  const [roomId, setRoomId] = useState("");
+  const [rooms, setRooms] = useState([]);
+  const [priceDate, setPriceDate] = useState("");
+  const [priceRoomId, setPriceRoomId] = useState("");
+  const [priceValue, setPriceValue] = useState("");
+
   /* =====================================================
-     DATE BLOCK / UNBLOCK
-  ====================================================== */
+     LOAD ROOMS FROM CONFIG
+  ===================================================== */
+  useEffect(() => {
+    async function loadRooms() {
+      const snap = await getDoc(doc(db, "hotelConfig", "main"));
+      if (snap.exists()) {
+        setRooms(snap.data().rooms || []);
+      }
+    }
+    loadRooms();
+  }, []);
+
+  /* =====================================================
+     1️⃣ DATE CONTROL
+  ===================================================== */
   const blockDate = async () => {
     if (!date) return alert("Select date first");
 
     await setDoc(
       doc(db, "bookings", date),
-      {
-        dateStatus: "blocked",
-        updatedAt: new Date()
-      },
+      { dateStatus: "blocked", updatedAt: new Date() },
       { merge: true }
     );
 
@@ -41,131 +60,162 @@ export default function AdminPanel() {
 
     await setDoc(
       doc(db, "bookings", date),
-      {
-        dateStatus: "open"
-      },
+      { dateStatus: "open", updatedAt: new Date() },
       { merge: true }
     );
 
     alert(`Date ${date} unblocked`);
   };
 
-  /* =====================================================
-     SLOT BLOCK / UNBLOCK
-  ====================================================== */
-  const blockSlot = async () => {
-  if (!date || !slot) {
-    alert("Select date & slot");
+    /* =====================================================
+     3️⃣ SINGLE ROOM CONTROL
+  ===================================================== */
+  const blockRoom = async () => {
+    if (!date || !slot || !roomId)
+      return alert("Select date, slot & room");
+
+    const ref = doc(db, "bookings", date, "slots", slot, "rooms", roomId);
+    const snap = await getDoc(ref);
+
+    if (snap.exists() && snap.data().transactionId) {
+      alert("Cannot block paid room");
+      return;
+    }
+
+    await setDoc(
+      ref,
+      {
+        status: "confirmed",
+        blockedBy: "admin",
+        updatedAt: new Date()
+      },
+      { merge: true }
+    );
+
+    alert("Room blocked");
+  };
+
+  const unblockRoom = async () => {
+    if (!date || !slot || !roomId)
+      return alert("Select date, slot & room");
+
+    const ref = doc(db, "bookings", date, "slots", slot, "rooms", roomId);
+    const snap = await getDoc(ref);
+
+    if (snap.exists() && snap.data().transactionId) {
+      alert("Paid room cannot be unblocked");
+      return;
+    }
+
+    await setDoc(
+      ref,
+      { status: "available", blockedBy: null },
+      { merge: true }
+    );
+
+    alert("Room unblocked");
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    window.location.href = "/admin/login";
+  };
+  
+/*overprice */
+  const saveRoomPriceOverride = async () => {
+  if (!priceDate || !priceRoomId || !priceValue) {
+    alert("Select date, room and price");
     return;
   }
 
-  const slotRef = doc(db, "bookings", date, "slots", slot);
-  const snap = await getDoc(slotRef);
-
-  // 🔐 If slot exists & payment already done → STOP
-  if (snap.exists()) {
-    const data = snap.data();
-
-    if (data.transactionId) {
-      alert("Cannot block this slot. Payment already completed.");
-      return;
-    }
-  }
-
-  // ✅ Safe to block
   await setDoc(
-    slotRef,
+    doc(db, "datePricing", priceDate),
     {
-      status: "confirmed",
-      phone: null,
-      expiry: null,
+      rooms: {
+        [priceRoomId]: Number(priceValue)
+      },
       updatedAt: new Date()
     },
     { merge: true }
   );
 
-  alert(`Slot ${slot} blocked on ${date}`);
+  alert("Room price overridden for selected date");
+  setPriceValue("");
 };
 
-  const unblockSlot = async () => {
-    if (!date || !slot) return alert("Select date & slot");
+const removeRoomPriceOverride = async () => {
+  if (!priceDate || !priceRoomId) {
+    alert("Select date & room");
+    return;
+  }
 
-    await setDoc(
-      doc(db, "bookings", date, "slots", slot),
-      {
-        status: "available",
-        phone: null,
-        expiry: null
+  await setDoc(
+    doc(db, "datePricing", priceDate),
+    {
+      rooms: {
+        [priceRoomId]: deleteField()
       },
-      { merge: true }
-    );
+      updatedAt: new Date()
+    },
+    { merge: true }
+  );
 
-    alert(`Slot ${slot} unblocked on ${date}`);
-  };
-  const logout = () => {
-      signOut(auth);
-      window.location.href = "/admin/login";
-    };
+  alert("Room price override removed");
+};
 
   return (
     <>
       <Header />
+
       <div className="container mt-4">
+        {/* HEADER */}
         <div className="d-flex justify-content-between align-items-center">
-  <h2 className="mb-4">Admin Control Panel</h2>
+          <h2>Admin Control Panel</h2>
+          <div className="d-flex gap-2">
+            <button
+              className="btn btn-primary"
+              onClick={() => (window.location.href = "/admin/dashboard")}
+            >
+              Dashboard
+            </button>
+            <button className="btn btn-danger" onClick={logout}>
+              Logout
+            </button>
+          </div>
+        </div>
 
-  <div className="d-flex gap-2">
-    <button
-      className="btn btn-primary"
-      onClick={() => (window.location.href = "/admin/dashboard")}
-    >
-      Dashboard
-    </button>
-
-    <button className="btn btn-danger" onClick={logout}>
-      Logout
-    </button>
-  </div>
-</div>
-</div>
-  
-
-      <div className="container mt-4">
-        {/* ================= DATE CONTROL ================= */}
-        <div className="card p-3 mb-4">
-          <h5>Date Block / Unblock</h5>
-
+        {/* DATE CONTROL */}
+        <div className="card p-3 mt-4">
+          <h5>Date Blocking</h5>
           <input
             type="date"
-            className="form-control mb-3"
+            className="form-control mb-2"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
-
           <div className="d-flex gap-2">
             <button className="btn btn-danger" onClick={blockDate}>
               Block Date
             </button>
-
             <button className="btn btn-success" onClick={unblockDate}>
               Unblock Date
             </button>
           </div>
         </div>
 
-        {/* ================= SLOT CONTROL ================= */}
-        <div className="card p-3 mb-4">
-          <h5>Slot Block / Unblock</h5>
+        {/* ROOM CONTROL */}
+        <div className="card p-3 mt-4">
+          <h5>Room Blocking</h5>
 
           <input
             type="date"
-            className="form-control mb-3"
+            className="form-control mb-2"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
 
           <select
-            className="form-select mb-3"
+            className="form-select mb-2"
             value={slot}
             onChange={(e) => setSlot(e.target.value)}
           >
@@ -175,18 +225,75 @@ export default function AdminPanel() {
             ))}
           </select>
 
-          <div className="d-flex gap-2">
-            <button className="btn btn-danger" onClick={blockSlot}>
-              Block Slot
-            </button>
+          <select
+            className="form-select mb-2"
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
+          >
+            <option value="">Select Room</option>
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.type} – {r.persons} Persons
+              </option>
+            ))}
+          </select>
 
-            <button className="btn btn-success" onClick={unblockSlot}>
-              Unblock Slot
+          <div className="d-flex gap-2">
+            <button className="btn btn-danger" onClick={blockRoom}>
+              Block Room
+            </button>
+            <button className="btn btn-success" onClick={unblockRoom}>
+              Unblock Room
             </button>
           </div>
         </div>
-           <AdminHotelConfig />
+        
+        {/* ROOM PRICE OVERRIDE */}
+        <div className="card p-3 mt-4">
+          <h5>Date-wise Room Price Override</h5>
+
+          <input
+            type="date"
+            className="form-control mb-2"
+            value={priceDate}
+            onChange={(e) => setPriceDate(e.target.value)}
+          />
+
+          <select
+            className="form-select mb-2"
+            value={priceRoomId}
+            onChange={(e) => setPriceRoomId(e.target.value)}
+          >
+            <option value="">Select Room</option>
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.type} – {r.persons} Persons (₹{r.price})
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="number"
+            className="form-control mb-2"
+            placeholder="Override Price"
+            value={priceValue}
+            onChange={(e) => setPriceValue(e.target.value)}
+          />
+
+          <div className="d-flex gap-2">
+            <button className="btn btn-primary" onClick={saveRoomPriceOverride}>
+              Save Price
+            </button>
+            <button className="btn btn-secondary" onClick={removeRoomPriceOverride}>
+              Remove Override
+            </button>
+          </div>
+        </div>
+
+        {/* HOTEL CONFIG */}
+        <AdminHotelConfig />
       </div>
+
       <Footer />
     </>
   );
