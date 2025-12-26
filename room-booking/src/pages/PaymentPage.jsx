@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { openRazorpayPayment } from "../services/razorpay";
-import emailjs from "@emailjs/browser";
+import emailjs from "emailjs-com";
 // Firebase
 import { db } from "../services/firebase";
 import {
