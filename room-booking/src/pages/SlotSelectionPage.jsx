@@ -9,10 +9,7 @@ import {
   collection,
   getDocs,
   doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-  Timestamp
+  getDoc
 } from "firebase/firestore";
 
 export default function SlotSelectionPage() {
@@ -20,6 +17,7 @@ export default function SlotSelectionPage() {
 
   const [slotStatus, setSlotStatus] = useState({});
   const [loading, setLoading] = useState(true);
+  const [totalRooms, setTotalRooms] = useState(0);
 
   const amSlots = [
     "02 AM","03 AM","04 AM","05 AM","06 AM","07 AM",
@@ -31,68 +29,88 @@ export default function SlotSelectionPage() {
     "06 PM","07 PM","08 PM","09 PM","10 PM","11 PM"
   ];
 
-  /* ------------------------------------------------
-     REDIRECT IF DATE NOT SELECTED
-  -------------------------------------------------*/
+  /* -----------------------------
+     SAFETY REDIRECT
+  ----------------------------- */
   useEffect(() => {
     if (!selectedDate) window.location.href = "/";
   }, [selectedDate]);
 
-  /* ------------------------------------------------
-     CLEANUP EXPIRED PENDING SLOTS
-  -------------------------------------------------*/
-  async function cleanupExpiredSlots() {
-    const ref = collection(db, "bookings", selectedDate, "slots");
-    const snap = await getDocs(ref);
-    const now = new Date();
-
-    for (const docSnap of snap.docs) {
-      const data = docSnap.data();
-      if (data.status === "pending" && data.expiry?.toDate() < now) {
-        await setDoc(
-          doc(db, "bookings", selectedDate, "slots", docSnap.id),
-          {
-            status: "available",
-            expiry: null
-          },
-          { merge: true }
-        );
+  /* -----------------------------
+     LOAD TOTAL ROOMS
+  ----------------------------- */
+  useEffect(() => {
+    async function loadRoomCount() {
+      const snap = await getDoc(doc(db, "hotelConfig", "main"));
+      if (snap.exists()) {
+        setTotalRooms((snap.data().rooms || []).length);
       }
     }
-  }
+    loadRoomCount();
+  }, []);
 
-  /* ------------------------------------------------
-     LOAD SLOT STATUSES (ONLY EXISTING DOCS)
-  -------------------------------------------------*/
-  async function loadSlots() {
-    const ref = collection(db, "bookings", selectedDate, "slots");
-    const snapshot = await getDocs(ref);
-
-    const statusMap = {};
-    snapshot.forEach((docSnap) => {
-      statusMap[docSnap.id] = docSnap.data().status;
-    });
-
-    setSlotStatus(statusMap);
-  }
-
-  /* ------------------------------------------------
-     INIT
-  -------------------------------------------------*/
+  /* -----------------------------
+     LOAD SLOT AVAILABILITY
+     (OPTIMIZED – PARALLEL READS)
+  ----------------------------- */
   useEffect(() => {
-    async function init() {
+    if (!selectedDate || totalRooms === 0) return;
+
+    async function loadSlots() {
       setLoading(true);
-      await cleanupExpiredSlots();
-      await loadSlots();
+
+      const statusMap = {};
+      const allSlots = [...amSlots, ...pmSlots];
+
+      // 1️⃣ Fetch user bookings ONCE
+      const bookingsSnap = await getDocs(collection(db, "userBookings"));
+
+      // 2️⃣ Fetch all admin room blocks IN PARALLEL
+      const adminRoomPromises = allSlots.map((slot) =>
+        getDocs(
+          collection(db, "bookings", selectedDate, "slots", slot, "rooms")
+        )
+      );
+
+      const adminRoomResults = await Promise.all(adminRoomPromises);
+
+      allSlots.forEach((slot, index) => {
+        let blockedRooms = 0;
+
+        /* -------- ADMIN BLOCKED ROOMS -------- */
+        adminRoomResults[index].forEach((r) => {
+          if (r.data().blockedBy === "admin") {
+            blockedRooms++;
+          }
+        });
+
+        /* -------- USER SUCCESS BOOKINGS -------- */
+        bookingsSnap.forEach((bSnap) => {
+          const b = bSnap.data();
+
+          if (
+            b.date === selectedDate &&
+            b.selectedSlot === slot &&
+            b.status === "success"
+          ) {
+            blockedRooms++;
+          }
+        });
+
+        statusMap[slot] =
+          blockedRooms >= totalRooms ? "full" : "available";
+      });
+
+      setSlotStatus(statusMap);
       setLoading(false);
     }
 
-    if (selectedDate) init();
-  }, [selectedDate]);
+    loadSlots();
+  }, [selectedDate, totalRooms]);
 
-  /* ------------------------------------------------
+  /* -----------------------------
      SLOT TIME CONVERSION
-  -------------------------------------------------*/
+  ----------------------------- */
   const convertTo24 = (slot) => {
     const [hour, meridiem] = slot.split(" ");
     let h = parseInt(hour);
@@ -103,44 +121,15 @@ export default function SlotSelectionPage() {
     return h;
   };
 
-  /* ------------------------------------------------
-     HANDLE SLOT CLICK → LOCK SLOT (NO PHONE HERE)
-  -------------------------------------------------*/
-  const handleSelectSlot = async (slot) => {
-    const slotRef = doc(db, "bookings", selectedDate, "slots", slot);
-    const snap = await getDoc(slotRef);
-
-    if (snap.exists()) {
-      const data = snap.data();
-
-      if (data.status === "confirmed") {
-        alert("This slot is already booked.");
-        return;
-      }
-
-      if (data.status === "pending" && data.expiry?.toDate() > new Date()) {
-        alert("This slot is currently being booked by another user.");
-        return;
-      }
+  /* -----------------------------
+     SLOT SELECT
+  ----------------------------- */
+  const handleSelectSlot = (slot) => {
+    if (slotStatus[slot] === "full") {
+      alert("All rooms are unavailable for this slot.");
+      return;
     }
 
-    // 🔒 Lock slot for 5 minutes
-    const expiry = Timestamp.fromDate(
-      new Date(Date.now() + 5 * 60 * 1000)
-    );
-
-    await setDoc(
-      slotRef,
-      {
-        status: "pending",
-        phone:null,
-        expiry,
-        createdAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-
-    // Save booking info
     const checkinDateTime = new Date(selectedDate);
     checkinDateTime.setHours(convertTo24(slot), 0, 0, 0);
 
@@ -153,20 +142,11 @@ export default function SlotSelectionPage() {
     window.location.href = "/booking/hotels";
   };
 
-  /* ------------------------------------------------
+  /* -----------------------------
      UI HELPERS
-  -------------------------------------------------*/
-  const getSlotClass = (slot) => {
-    const status = slotStatus[slot];
-    if (status === "confirmed") return "full-slot";
-    if (status === "pending") return "pending-slot";
-    return "available-slot"; // 🟢 default
-  };
-
-  const isDisabled = (slot) => {
-    const status = slotStatus[slot];
-    return status === "pending" || status === "confirmed";
-  };
+  ----------------------------- */
+  const getSlotClass = (slot) =>
+    slotStatus[slot] === "full" ? "full-slot" : "available-slot";
 
   return (
     <>
@@ -189,7 +169,7 @@ export default function SlotSelectionPage() {
                 <button
                   key={slot}
                   className={`slot-btn ${getSlotClass(slot)}`}
-                  disabled={isDisabled(slot)}
+                  disabled={slotStatus[slot] === "full"}
                   onClick={() => handleSelectSlot(slot)}
                 >
                   {slot}
@@ -203,7 +183,7 @@ export default function SlotSelectionPage() {
                 <button
                   key={slot}
                   className={`slot-btn ${getSlotClass(slot)}`}
-                  disabled={isDisabled(slot)}
+                  disabled={slotStatus[slot] === "full"}
                   onClick={() => handleSelectSlot(slot)}
                 >
                   {slot}
