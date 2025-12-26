@@ -6,13 +6,30 @@ import {
   collection,
   doc,
   onSnapshot,
-  getDocs
+  getDocs,
+  getDoc
 } from "firebase/firestore";
 
 import "./calendar.css";
 
+const TOTAL_SLOTS = 22;
+
 export default function Calendar({ onDateSelect }) {
   const [dates, setDates] = useState({});
+  const [totalRooms, setTotalRooms] = useState(0);
+
+  /* ------------------------------------------------
+     0️⃣ LOAD TOTAL ROOMS (ADMIN CONFIG)
+  -------------------------------------------------*/
+  useEffect(() => {
+    async function loadRooms() {
+      const snap = await getDoc(doc(db, "hotelConfig", "main"));
+      if (snap.exists()) {
+        setTotalRooms((snap.data().rooms || []).length);
+      }
+    }
+    loadRooms();
+  }, []);
 
   /* ------------------------------------------------
      1️⃣ CREATE NEXT 15 DAYS
@@ -28,8 +45,9 @@ export default function Calendar({ onDateSelect }) {
       map[key] = {
         date: d,
         status: "available",
+        availableRooms: 0,
         dateStatus: null,
-        dateChecked: false // 🔑 IMPORTANT
+        dateChecked: false
       };
     }
 
@@ -42,12 +60,12 @@ export default function Calendar({ onDateSelect }) {
   useEffect(() => {
     if (!Object.keys(dates).length) return;
 
-    const unsubscribers = [];
+    const unsubs = [];
 
     Object.keys(dates).forEach((dateKey) => {
-      const dateRef = doc(db, "bookings", dateKey);
+      const ref = doc(db, "bookings", dateKey);
 
-      const unsub = onSnapshot(dateRef, (snap) => {
+      const unsub = onSnapshot(ref, (snap) => {
         const dateStatus = snap.exists()
           ? snap.data().dateStatus || null
           : null;
@@ -57,73 +75,61 @@ export default function Calendar({ onDateSelect }) {
           [dateKey]: {
             ...prev[dateKey],
             dateStatus,
-            dateChecked: true, // ✅ mark as processed
-            status:
-              dateStatus === "blocked"
-                ? "full"
-                : dateStatus === "open"
-                ? "available"
-                : prev[dateKey].status
+            dateChecked: true
           }
         }));
       });
 
-      unsubscribers.push(unsub);
+      unsubs.push(unsub);
     });
 
-    return () => unsubscribers.forEach((u) => u());
+    return () => unsubs.forEach((u) => u());
   }, [Object.keys(dates).length]);
 
   /* ------------------------------------------------
-     3️⃣ SLOT COUNT (RUN ONLY AFTER DATE CHECK)
+     3️⃣ ROOM AVAILABILITY COUNT (USER BOOKINGS)
   -------------------------------------------------*/
   useEffect(() => {
-    if (!Object.keys(dates).length) return;
+    if (!Object.keys(dates).length || totalRooms === 0) return;
 
-    async function checkAvailability() {
+    async function calculateAvailability() {
       const updated = { ...dates };
+      const bookingsSnap = await getDocs(collection(db, "userBookings"));
 
       for (const dateKey of Object.keys(updated)) {
         const d = updated[dateKey];
 
-        // 🚫 WAIT until date snapshot is done
         if (!d.dateChecked) continue;
 
-        // 🔴 ADMIN BLOCK → NEVER OVERRIDE
+        // 🔴 ADMIN BLOCK
         if (d.dateStatus === "blocked") {
           updated[dateKey].status = "full";
+          updated[dateKey].availableRooms = 0;
           continue;
         }
 
-        // 🟢 ADMIN FORCE OPEN
-        if (d.dateStatus === "open") {
-          updated[dateKey].status = "available";
-          continue;
-        }
+        const totalCapacity = totalRooms * TOTAL_SLOTS;
+        let booked = 0;
 
-        const slotsRef = collection(db, "bookings", dateKey, "slots");
-        const snap = await getDocs(slotsRef);
-
-        let totalSlots = 0;
-        let blockedSlots = 0;
-
-        snap.forEach((doc) => {
-          totalSlots++;
-          const s = doc.data().status;
-          if (s === "pending" || s === "confirmed") blockedSlots++;
+        bookingsSnap.forEach((b) => {
+          const data = b.data();
+          if (data.date === dateKey && data.status === "success") {
+            booked++;
+          }
         });
 
+        const available = Math.max(totalCapacity - booked, 0);
+
+        updated[dateKey].availableRooms = available;
         updated[dateKey].status =
-          totalSlots > 0 && blockedSlots === totalSlots
-            ? "full"
-            : "available";
+          available === 0 ? "full" : "available";
       }
 
       setDates(updated);
     }
 
-    checkAvailability();
-  }, [Object.keys(dates).length]);
+    calculateAvailability();
+  }, [totalRooms, Object.keys(dates).length]);
 
   /* ------------------------------------------------
      4️⃣ UI
@@ -153,7 +159,15 @@ export default function Calendar({ onDateSelect }) {
               </div>
             </div>
 
-            <div className="date-number">{format(d.date, "dd")}</div>
+            <div className="date-number">
+              {format(d.date, "dd")}
+            </div>
+
+            <div className="room-count">
+              {d.status === "full"
+                ? "No Rooms"
+                : `${d.availableRooms} Rooms Left`}
+            </div>
 
             <button
               disabled={d.status === "full"}
