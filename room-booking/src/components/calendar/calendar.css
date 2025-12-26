@@ -138,6 +138,13 @@
   cursor: not-allowed;
 }
 
+.room-count {
+  font-size: 12px;
+  margin: 6px 0;
+  font-weight: 600;
+}
+
+
 /* ============================
    TABLET
 ============================ */
