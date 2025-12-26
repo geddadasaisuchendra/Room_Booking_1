@@ -101,6 +101,17 @@
   cursor: pointer;
   transition: 0.2s;
 }
+/* DISABLED BOOK BUTTON (PENDING / BOOKED) */
+.book-now-btn:disabled {
+  background: #e0e0e0;
+  color: #777;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.book-now-btn:disabled:hover {
+  background: #e0e0e0;
+}
 
 .book-now-btn:hover {
   background: #e6ffe6;
