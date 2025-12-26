@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { openRazorpayPayment } from "../services/razorpay";
-
+import emailjs from "emailjs-com";
 // Firebase
 import { db } from "../services/firebase";
 import {
@@ -9,6 +9,8 @@ import {
   setDoc,
   deleteDoc,
   getDoc,
+  getDocs,
+  collection,
   serverTimestamp
 } from "firebase/firestore";
 
@@ -17,11 +19,15 @@ export default function PaymentPage() {
 
   useEffect(() => {
     async function startPayment() {
+      /* =============================
+         READ LOCAL STORAGE
+      ============================== */
       const form = JSON.parse(localStorage.getItem("bookingForm"));
       const phone = localStorage.getItem("userPhone");
       const hotelName = localStorage.getItem("selectedHotelName");
       const hotelType = localStorage.getItem("selectedHotelType");
       const amount = localStorage.getItem("selectedHotelPrice");
+      const roomId = localStorage.getItem("selectedRoomId");
 
       const selectedDate = localStorage.getItem("selectedDate");
       const selectedSlot = localStorage.getItem("checkInSlot");
@@ -30,155 +36,204 @@ export default function PaymentPage() {
 
       const tempBookingId = localStorage.getItem("tempBookingId");
 
-      if (!form || !hotelName || !phone || !selectedDate || !selectedSlot) {
+      if (
+        !form ||
+        !phone ||
+        !selectedDate ||
+        !selectedSlot ||
+        !tempBookingId ||
+        !roomId
+      ) {
         alert("Missing booking details. Please restart booking.");
         navigate("/");
         return;
       }
 
+      const tempRef = doc(db, "userBookings", tempBookingId);
+
       /* =====================================================
-         1️⃣ DATE LEVEL CHECK (ADMIN BLOCK SAFE)
+         1️⃣ ADMIN DATE BLOCK CHECK (HARD STOP)
       ===================================================== */
-      const dateRef = doc(db, "bookings", selectedDate);
-      const dateSnap = await getDoc(dateRef);
+      const dateSnap = await getDoc(doc(db, "bookings", selectedDate));
 
       if (dateSnap.exists() && dateSnap.data().dateStatus === "blocked") {
-        alert("This date has been blocked by admin. Please select another date.");
+        alert("This date has been blocked by admin.");
+        await deleteDoc(tempRef);
         navigate("/");
         return;
       }
 
       /* =====================================================
-         2️⃣ SLOT LEVEL CHECK
+         2️⃣ VERIFY TEMP BOOKING STILL VALID
       ===================================================== */
-      const slotRef = doc(db, "bookings", selectedDate, "slots", selectedSlot);
-      const slotSnap = await getDoc(slotRef);
+      const tempSnap = await getDoc(tempRef);
 
-      if (!slotSnap.exists()) {
-        alert("Slot not available. Please select another slot.");
-        navigate("/booking/slot");
+      if (!tempSnap.exists()) {
+        alert("Booking expired. Please try again.");
+        navigate("/");
         return;
       }
 
-      const slotData = slotSnap.data();
-
-      if (slotData.status === "confirmed") {
-        alert("This slot has been blocked. Please select another slot.");
-        navigate("/booking/slot");
+      if (tempSnap.data().status !== "pending") {
+        alert("Booking no longer valid.");
+        navigate("/");
         return;
       }
 
       /* =====================================================
-         3️⃣ PREPARE BOOKING DATA
+         3️⃣ ADMIN ROOM BLOCK CHECK (FINAL AUTHORITY)
+      ===================================================== */
+      const adminRoomSnap = await getDoc(
+        doc(
+          db,
+          "bookings",
+          selectedDate,
+          "slots",
+          selectedSlot,
+          "rooms",
+          roomId
+        )
+      );
+
+      if (
+        adminRoomSnap.exists() &&
+        adminRoomSnap.data().blockedBy === "admin"
+      ) {
+        alert("This room has been blocked by admin.");
+        await deleteDoc(tempRef);
+        navigate("/");
+        return;
+      }
+
+      /* =====================================================
+         4️⃣ ROOM ALREADY BOOKED CHECK (SUCCESS / VALID PENDING)
+      ===================================================== */
+      const bookingsSnap = await getDocs(collection(db, "userBookings"));
+      const now = new Date();
+
+      for (const bSnap of bookingsSnap.docs) {
+        if (bSnap.id === tempBookingId) continue;
+        
+        const b = bSnap.data();
+
+        if (
+          b.roomId === roomId &&
+          b.date === selectedDate &&
+          b.selectedSlot === selectedSlot &&
+          (
+            b.status === "success" ||
+            (
+              b.status === "pending" &&
+              b.expiry &&
+              b.expiry.toDate() > now
+            )
+          )
+        ) {
+          alert("Room is no longer available.");
+          await deleteDoc(tempRef);
+          navigate("/");
+          return;
+        }
+      }
+
+      /* =====================================================
+         5️⃣ FINAL BOOKING PAYLOAD
       ===================================================== */
       const bookingData = {
         ...form,
         phone,
         hotelName,
         hotelType,
+        roomId,
         amount: Number(amount),
+
         date: selectedDate,
         selectedSlot,
         checkOutDate,
         checkOutTime,
+
         status: "pending",
         createdAt: new Date()
       };
 
       /* =====================================================
-         4️⃣ OPEN RAZORPAY
+         6️⃣ OPEN RAZORPAY
       ===================================================== */
       openRazorpayPayment({
         amount,
         name: form.name,
         phone,
-        date: selectedDate,
-        timeSlot: selectedSlot,
 
-        /* =========================
-           PAYMENT SUCCESS
-        ========================== */
+        /* -------- PAYMENT SUCCESS -------- */
         onSuccess: async (res) => {
           const paymentId = res.razorpay_payment_id;
 
-          // ✅ CONFIRM SLOT (LOCK FOREVER)
-          await setDoc(
-            slotRef,
-            {
-              status: "confirmed",
-              phone,
-              expiry: null,
-              transactionId: paymentId, // 🔐 Admin cannot override
-              updatedAt: serverTimestamp()
-            },
-            { merge: true }
-          );
-
-          // ✅ SAVE FINAL BOOKING
           await setDoc(doc(db, "userBookings", paymentId), {
             ...bookingData,
             paymentId,
+            transactionId: paymentId,
             status: "success",
-            createdAt: new Date()
+            updatedAt: serverTimestamp()
           });
 
-          // ✅ REMOVE TEMP BOOKING (IF ANY)
-          if (tempBookingId) {
-            await deleteDoc(doc(db, "userBookings", tempBookingId));
-          }
+          await deleteDoc(tempRef);
 
+           // 🔔 SEND USER EMAIL
+            emailjs.send(
+              import.meta.env.Email_Service_ID,
+              import.meta.env.Email_User_template_ID, // USER TEMPLATE
+              {
+                user_name: form.name,
+                user_email: form.email,
+                phone,
+                room_type: hotelType,
+                room_id: roomId,
+                checkin_date: selectedDate,
+                checkin_slot: selectedSlot,
+                checkout_date: checkOutDate,
+                checkout_time: checkOutTime,
+                amount,
+                payment_id: paymentId
+              },
+              "lUER1WdBTQbXUpHwh"
+            );
+
+            // 🔔 SEND ADMIN EMAIL
+            emailjs.send(
+              import.meta.env.Email_Service_ID,
+              import.meta.env.Email_Admin_template_ID, // ADMIN TEMPLATE
+              {
+                user_name: form.name,
+                user_email: form.email,
+                phone,
+                room_type: hotelType,
+                room_id: roomId,
+                checkin_date: selectedDate,
+                checkin_slot: selectedSlot,
+                amount,
+                payment_id: paymentId
+              },
+              import.meta.env.Email_APIkey
+            );
+
+
+          localStorage.removeItem("tempBookingId");
           localStorage.setItem("lastPaymentId", paymentId);
+
           navigate("/success");
         },
 
-        /* =========================
-           PAYMENT FAILED
-        ========================== */
+        /* -------- PAYMENT FAILED -------- */
         onFailure: async () => {
-          const latestSnap = await getDoc(slotRef);
-
-          // Release only if not confirmed
-          if (latestSnap.exists() && latestSnap.data().status !== "confirmed") {
-            await setDoc(
-              slotRef,
-              {
-                status: "available",
-                phone: null,
-                expiry: null,
-                transactionId: null
-              },
-              { merge: true }
-            );
-          }
-
-          if (tempBookingId) {
-            await deleteDoc(doc(db, "userBookings", tempBookingId));
-          }
-
+          await deleteDoc(tempRef);
           alert("Payment failed. Please try again.");
           navigate("/");
         },
 
-        /* =========================
-           USER CLOSED PAYMENT
-        ========================== */
+        /* -------- USER CLOSED PAYMENT -------- */
         modal: {
           ondismiss: async () => {
-            const latestSnap = await getDoc(slotRef);
-
-            if (latestSnap.exists() && latestSnap.data().status !== "confirmed") {
-              await setDoc(
-                slotRef,
-                {
-                  status: "available",
-                  phone: null,
-                  expiry: null,
-                  transactionId: null
-                },
-                { merge: true }
-              );
-            }
-
+            await deleteDoc(tempRef);
             alert("Payment cancelled.");
             navigate("/");
           }
@@ -187,7 +242,7 @@ export default function PaymentPage() {
     }
 
     startPayment();
-  }, []);
+  }, [navigate]);
 
   return (
     <div style={{ padding: "40px", textAlign: "center" }}>
