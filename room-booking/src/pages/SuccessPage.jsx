@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { generateInvoice } from "../utils/generateInvoice";
+import Header from "../components/layout/Header";
+import Footer from "../components/layout/Footer";
 
 export default function SuccessPage() {
   const [booking, setBooking] = useState(null);
@@ -37,6 +39,8 @@ export default function SuccessPage() {
   }, []);
 
   return (
+    <>
+    <Header />
     <div className="container mt-5">
       <div
         className="card shadow-sm p-4 text-center"
@@ -87,5 +91,7 @@ export default function SuccessPage() {
 </div>
       </div>
     </div>
+     <Footer />
+    </>
   );
 }
