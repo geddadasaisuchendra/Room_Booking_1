@@ -164,7 +164,7 @@ const visiblePmSlots =
   return (
     <body class="d-flex flex-column min-vh-100">
       <Header />
-       <div className="flex-fill">
+       <div className="flex-fill mt-5">
       <div className="slot-container">
         <h2 className="slot-title">Check In Slot Availability</h2>
         <h3 className="slot-date">
