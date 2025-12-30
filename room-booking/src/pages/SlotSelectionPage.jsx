@@ -14,7 +14,10 @@ import {
 
 export default function SlotSelectionPage() {
   const selectedDate = localStorage.getItem("selectedDate");
-
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+  const currentHour = now.getHours();
+  
   const [slotStatus, setSlotStatus] = useState({});
   const [loading, setLoading] = useState(true);
   const [totalRooms, setTotalRooms] = useState(0);
@@ -148,10 +151,20 @@ export default function SlotSelectionPage() {
   const getSlotClass = (slot) =>
     slotStatus[slot] === "full" ? "full-slot" : "available-slot";
 
-  return (
-    <>
-      <Header />
+  const visibleAmSlots =
+  selectedDate === todayStr
+    ? amSlots.filter((slot) => convertTo24(slot) > currentHour)
+    : amSlots;
 
+const visiblePmSlots =
+  selectedDate === todayStr
+    ? pmSlots.filter((slot) => convertTo24(slot) > currentHour)
+    : pmSlots;
+
+  return (
+    <body class="d-flex flex-column min-vh-100">
+      <Header />
+       <div className="flex-fill">
       <div className="slot-container">
         <h2 className="slot-title">Check In Slot Availability</h2>
         <h3 className="slot-date">
@@ -163,38 +176,50 @@ export default function SlotSelectionPage() {
 
         {!loading && (
           <>
-            <h4 className="slot-group-title">AM</h4>
-            <div className="slot-grid">
-              {amSlots.map((slot) => (
-                <button
-                  key={slot}
-                  className={`slot-btn ${getSlotClass(slot)}`}
-                  disabled={slotStatus[slot] === "full"}
-                  onClick={() => handleSelectSlot(slot)}
-                >
-                  {slot}
-                </button>
-              ))}
-            </div>
+            {visibleAmSlots.length > 0 && (
+                    <>
+                      <h4 className="slot-group-title">AM</h4>
+                      <div className="slot-grid">
+                        {visibleAmSlots.map((slot) => (
+                          <button
+                            key={slot}
+                            className={`slot-btn ${getSlotClass(slot)}`}
+                            disabled={slotStatus[slot] === "full"}
+                            onClick={() => handleSelectSlot(slot)}
+                          >
+                            {slot}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
-            <h4 className="slot-group-title">PM</h4>
-            <div className="slot-grid">
-              {pmSlots.map((slot) => (
-                <button
-                  key={slot}
-                  className={`slot-btn ${getSlotClass(slot)}`}
-                  disabled={slotStatus[slot] === "full"}
-                  onClick={() => handleSelectSlot(slot)}
-                >
-                  {slot}
-                </button>
-              ))}
-            </div>
+
+            {visiblePmSlots.length > 0 && (
+                <>
+                  <h4 className="slot-group-title">PM</h4>
+                  <div className="slot-grid">
+                    {visiblePmSlots.map((slot) => (
+                      <button
+                        key={slot}
+                        className={`slot-btn ${getSlotClass(slot)}`}
+                        disabled={slotStatus[slot] === "full"}
+                        onClick={() => handleSelectSlot(slot)}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
           </>
         )}
       </div>
-
+       </div>
+      <div className="slot-footer mt-auto">
       <Footer />
-    </>
+      </div>
+    </body>
   );
 }
