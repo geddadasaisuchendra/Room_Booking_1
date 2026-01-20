@@ -119,9 +119,6 @@ export default function Calendar({ onDateSelect }) {
         });
 
         const available = Math.max(totalCapacity - booked, 0);
-        if(booked === 4){
-          available=0;
-        }
         updated[dateKey].availableRooms = available;
         updated[dateKey].status =
           available === 0 ? "full" : "available";
