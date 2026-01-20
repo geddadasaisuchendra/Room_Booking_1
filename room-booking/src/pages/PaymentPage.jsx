@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { openRazorpayPayment } from "../services/razorpay";
 import emailjs from "emailjs-com";
+
 // Firebase
 import { db } from "../services/firebase";
 import {
@@ -11,7 +11,7 @@ import {
   getDoc,
   getDocs,
   collection,
-  serverTimestamp
+  serverTimestamp,
 } from "firebase/firestore";
 
 export default function PaymentPage() {
@@ -26,7 +26,8 @@ export default function PaymentPage() {
       const phone = localStorage.getItem("userPhone");
       const hotelName = localStorage.getItem("selectedHotelName");
       const hotelType = localStorage.getItem("selectedHotelType");
-      const amount = localStorage.getItem("selectedHotelPrice");
+      const hotelPersons = localStorage.getItem("selectedHotelPersons");
+      const amount = Number(localStorage.getItem("selectedHotelPrice"));
       const roomId = localStorage.getItem("selectedRoomId");
 
       const selectedDate = localStorage.getItem("selectedDate");
@@ -52,10 +53,9 @@ export default function PaymentPage() {
       const tempRef = doc(db, "userBookings", tempBookingId);
 
       /* =====================================================
-         1️⃣ ADMIN DATE BLOCK CHECK (HARD STOP)
+         1️⃣ ADMIN DATE BLOCK CHECK
       ===================================================== */
       const dateSnap = await getDoc(doc(db, "bookings", selectedDate));
-
       if (dateSnap.exists() && dateSnap.data().dateStatus === "blocked") {
         alert("This date has been blocked by admin.");
         await deleteDoc(tempRef);
@@ -64,41 +64,43 @@ export default function PaymentPage() {
       }
 
       /* =====================================================
-         2️⃣ VERIFY TEMP BOOKING STILL VALID
+         2️⃣ VERIFY TEMP BOOKING
       ===================================================== */
       const tempSnap = await getDoc(tempRef);
-
-      if (!tempSnap.exists()) {
+      if (!tempSnap.exists() || tempSnap.data().status !== "pending") {
         alert("Booking expired. Please try again.");
         navigate("/");
         return;
       }
 
-      if (tempSnap.data().status !== "pending") {
-        alert("Booking no longer valid.");
+      /* =====================================================
+         3️⃣ DATE LEVEL ROOM LIMIT (MAX 4)
+      ===================================================== */
+      const bookingsSnap = await getDocs(collection(db, "userBookings"));
+      let bookedRoomsForDate = 0;
+
+      bookingsSnap.forEach((d) => {
+        const b = d.data();
+        if (b.date === selectedDate && b.status === "success") {
+          bookedRoomsForDate += 1;
+        }
+      });
+
+      if (bookedRoomsForDate > 4) {
+        alert("No rooms available for this date.");
+        await deleteDoc(tempRef);
         navigate("/");
         return;
       }
 
       /* =====================================================
-         3️⃣ ADMIN ROOM BLOCK CHECK (FINAL AUTHORITY)
+         4️⃣ ADMIN ROOM BLOCK CHECK
       ===================================================== */
       const adminRoomSnap = await getDoc(
-        doc(
-          db,
-          "bookings",
-          selectedDate,
-          "slots",
-          selectedSlot,
-          "rooms",
-          roomId
-        )
+        doc(db, "bookings", selectedDate, "slots", selectedSlot, "rooms", roomId)
       );
 
-      if (
-        adminRoomSnap.exists() &&
-        adminRoomSnap.data().blockedBy === "admin"
-      ) {
+      if (adminRoomSnap.exists() && adminRoomSnap.data().blockedBy === "admin") {
         alert("This room has been blocked by admin.");
         await deleteDoc(tempRef);
         navigate("/");
@@ -106,28 +108,22 @@ export default function PaymentPage() {
       }
 
       /* =====================================================
-         4️⃣ ROOM ALREADY BOOKED CHECK (SUCCESS / VALID PENDING)
+         5️⃣ ROOM DOUBLE BOOK CHECK
       ===================================================== */
-      const bookingsSnap = await getDocs(collection(db, "userBookings"));
       const now = new Date();
 
-      for (const bSnap of bookingsSnap.docs) {
-        if (bSnap.id === tempBookingId) continue;
-        
-        const b = bSnap.data();
+      for (const d of bookingsSnap.docs) {
+        if (d.id === tempBookingId) continue;
 
+        const b = d.data();
         if (
           b.roomId === roomId &&
           b.date === selectedDate &&
           b.selectedSlot === selectedSlot &&
-          (
-            b.status === "success" ||
-            (
-              b.status === "pending" &&
+          (b.status === "success" ||
+            (b.status === "pending" &&
               b.expiry &&
-              b.expiry.toDate() > now
-            )
-          )
+              b.expiry.toDate() > now))
         ) {
           alert("Room is no longer available.");
           await deleteDoc(tempRef);
@@ -137,108 +133,114 @@ export default function PaymentPage() {
       }
 
       /* =====================================================
-         5️⃣ FINAL BOOKING PAYLOAD
+         6️⃣ CREATE RAZORPAY ORDER (SERVER – VERCEL)
       ===================================================== */
-      const bookingData = {
-        ...form,
-        phone,
-        hotelName,
-        hotelType,
-        roomId,
-        amount: Number(amount),
+      const orderRes = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
 
-        date: selectedDate,
-        selectedSlot,
-        checkOutDate,
-        checkOutTime,
+      const orderData = await orderRes.json();
 
-        status: "pending",
-        createdAt: new Date()
-      };
+      if (!orderData.id) {
+        alert("Payment initialization failed.");
+        navigate("/");
+        return;
+      }
 
       /* =====================================================
-         6️⃣ OPEN RAZORPAY
+         7️⃣ OPEN RAZORPAY CHECKOUT
       ===================================================== */
-      openRazorpayPayment({
-        amount,
-        name: form.name,
-        phone,
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: orderData.amount,
+        currency: "INR",
+        name: "Bheema Grand Residency",
+        description: "Room Booking",
+        order_id: orderData.id,
+        handler: async (response) => {
+          const paymentId = response.razorpay_payment_id;
 
-        /* -------- PAYMENT SUCCESS -------- */
-        onSuccess: async (res) => {
-          const paymentId = res.razorpay_payment_id;
+          const bookingData = {
+            ...form,
+            phone,
+            hotelName,
+            hotelType,
+            hotelPersons,
+            roomId,
+            amount,
+            date: selectedDate,
+            selectedSlot,
+            checkOutDate,
+            checkOutTime,
+            status: "success",
+            paymentId,
+            transactionId: paymentId,
+            createdAt: new Date(),
+          };
 
           await setDoc(doc(db, "userBookings", paymentId), {
             ...bookingData,
-            paymentId,
-            transactionId: paymentId,
-            status: "success",
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
           });
 
           await deleteDoc(tempRef);
 
-           // 🔔 SEND USER EMAIL
-            emailjs.send(
-              import.meta.env.VITE_Email_Service_ID,
-              import.meta.env.VITE_Email_User_template_ID, // USER TEMPLATE
-              {
-                user_name: form.name,
-                user_email: form.email,
-                phone,
-                room_type: hotelType,
-                room_id: roomId,
-                checkin_date: selectedDate,
-                checkin_slot: selectedSlot,
-                checkout_date: checkOutDate,
-                checkout_time: checkOutTime,
-                amount,
-                payment_id: paymentId
-              },
-              import.meta.env.VITE_Email_APIkey
-            );
+          /* -------- EMAILS -------- */
+          emailjs.send(
+            "service_3tjizh3",
+            "template_vlxd354",
+            {
+              user_name: form.name,
+              user_email: form.email,
+              phone,
+              room_type: `${hotelType} - ${hotelPersons}`,
+              room_id: roomId,
+              checkin_date: selectedDate,
+              checkin_slot: selectedSlot,
+              checkout_date: checkOutDate,
+              checkout_time: checkOutTime,
+              amount,
+              payment_id: paymentId,
+            },
+            "lUER1WdBTQbXUpHwh"
+          );
 
-            // 🔔 SEND ADMIN EMAIL
-            emailjs.send(
-              import.meta.env.VITE_Email_Service_ID,
-              import.meta.env.VITE_Email_Admin_template_ID, // ADMIN TEMPLATE
-              {
-                user_name: form.name,
-                user_email: form.email,
-                phone,
-                room_type: hotelType,
-                room_id: roomId,
-                checkin_date: selectedDate,
-                checkin_slot: selectedSlot,
-                amount,
-                payment_id: paymentId
-              },
-              import.meta.env.VITE_Email_APIkey
-            );
-
+          emailjs.send(
+            "service_3tjizh3",
+            "template_uu9q8bf",
+            {
+              user_name: form.name,
+              user_email: form.email,
+              phone,
+              room_type: `${hotelType} - ${hotelPersons}`,
+              room_id: roomId,
+              checkin_date: selectedDate,
+              checkin_slot: selectedSlot,
+              amount,
+              payment_id: paymentId,
+            },
+            "lUER1WdBTQbXUpHwh"
+          );
 
           localStorage.removeItem("tempBookingId");
           localStorage.setItem("lastPaymentId", paymentId);
 
           navigate("/success");
         },
-
-        /* -------- PAYMENT FAILED -------- */
-        onFailure: async () => {
-          await deleteDoc(tempRef);
-          alert("Payment failed. Please try again.");
-          navigate("/");
+        prefill: {
+          name: form.name,
+          email: form.email,
+          contact: phone,
         },
+        theme: {
+          color: "#0b8a3e",
+        },
+      };
 
-        /* -------- USER CLOSED PAYMENT -------- */
-        modal: {
-          ondismiss: async () => {
-            await deleteDoc(tempRef);
-            alert("Payment cancelled.");
-            navigate("/");
-          }
-        }
-      });
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     }
 
     startPayment();
