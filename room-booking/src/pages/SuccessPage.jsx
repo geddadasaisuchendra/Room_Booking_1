@@ -28,6 +28,7 @@ export default function SuccessPage() {
       phone,
       hotelName,
       hotelType,
+      hotelPersons,
       price,
       selectedDate,
       checkInSlot,
