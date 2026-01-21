@@ -112,7 +112,7 @@ export default function BookingTable() {
                 <td style={cell}>
                   {b.hotelName}
                   <br />
-                  <small>({b.hotelType})</small>
+                  <small>({b.hotelType}:{b.hotelPersons})</small>
                 </td>
 
                 <td style={cell}>
