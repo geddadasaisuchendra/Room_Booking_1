@@ -185,6 +185,7 @@ useEffect(() => {
     localStorage.setItem("userPhone", phone);
     localStorage.setItem("selectedHotelName", "BHEEMA GRAND RESIDENCY");
     localStorage.setItem("selectedHotelType", selectedRoom.type);
+    localStorage.setItem("selectedHotelPersons", selectedRoom.persons);
     localStorage.setItem("selectedHotelPrice",  getRoomPrice(selectedRoom));
     localStorage.setItem("selectedRoomId", selectedRoom.id);
     localStorage.setItem("tempBookingId", tempId);
