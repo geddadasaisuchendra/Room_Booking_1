@@ -17,7 +17,7 @@ export function generateInvoice(booking) {
     body: [
       ["Name", booking.name],
       ["Phone", booking.phone],
-      ["Hotel", `${booking.hotelName} (${booking.hotelType})`],
+      ["Hotel", `${booking.hotelName} (${booking.hotelType} - ${booking.hotelPersons})`],
       ["Check-In", `${booking.selectedDate} ${booking.checkInSlot}`],
       ["Check-Out", `${booking.checkOutDate} ${booking.checkOutTime}`],
       ["Amount Paid", `${booking.price}`],
