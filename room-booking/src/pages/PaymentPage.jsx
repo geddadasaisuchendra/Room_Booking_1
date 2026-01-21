@@ -229,6 +229,16 @@ export default function PaymentPage() {
 
           navigate("/success");
         },
+
+        modal: {
+          ondismiss: async () => {
+            await deleteDoc(tempRef);
+            alert("Payment cancelled.");
+            navigate("/");
+          },
+        },
+
+        
         prefill: {
           name: form.name,
           email: form.email,
@@ -240,6 +250,14 @@ export default function PaymentPage() {
       };
 
       const rzp = new window.Razorpay(options);
+
+      rzp.on("payment.failed", async () => {
+        await deleteDoc(tempRef);
+        alert("Payment failed. Please try again.");
+        navigate("/");
+      });
+
+      
       rzp.open();
     }
 
