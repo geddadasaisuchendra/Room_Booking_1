@@ -9,6 +9,7 @@ export default function BookingPreviewPage() {
   const phone = localStorage.getItem("userPhone");
   const hotelName = localStorage.getItem("selectedHotelName");
   const hotelType = localStorage.getItem("selectedHotelType");
+  const hotelPersons = localStorage.getItem("selectedHotelPersons");
   const amount = localStorage.getItem("selectedHotelPrice");
 
   const selectedDate = localStorage.getItem("selectedDate");
@@ -39,7 +40,7 @@ export default function BookingPreviewPage() {
         <div className="preview-section">
           <h3>Room Details</h3>
           <p><b>Hotel:</b> {hotelName}</p>
-          <p><b>Room Type:</b> {hotelType}</p>
+          <p><b>Room Type:</b> {hotelType} <span>({hotelPersons})</span> </p>
           <p><b>Total Price:</b> ₹{amount}</p>
         </div>
 
