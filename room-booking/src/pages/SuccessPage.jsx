@@ -13,6 +13,7 @@ export default function SuccessPage() {
     const phone = localStorage.getItem("userPhone");
     const hotelName = localStorage.getItem("selectedHotelName");
     const hotelType = localStorage.getItem("selectedHotelType");
+    const hotelPersons = localStorage.getItem("selectedHotelPersons");
     const price = localStorage.getItem("selectedHotelPrice");
 
     const selectedDate = localStorage.getItem("selectedDate");
@@ -63,7 +64,7 @@ export default function SuccessPage() {
             <p><strong>Phone:</strong> {booking.phone}</p>
 
             <p>
-              <strong>Hotel:</strong> {booking.hotelName} ({booking.hotelType})
+              <strong>Hotel:</strong> {booking.hotelName} ({booking.hotelType} - {booking.hotelPersons})
             </p>
 
             <p>
