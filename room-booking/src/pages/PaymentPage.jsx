@@ -161,6 +161,61 @@ export default function PaymentPage() {
         }
       }
 
+
+      function slotToDateTime(dateStr, slotStr) {
+      const [hourStr, meridiem] = slotStr.split(" ");
+      let hour = parseInt(hourStr, 10);
+    
+      if (meridiem === "PM" && hour !== 12) hour += 12;
+      if (meridiem === "AM" && hour === 12) hour = 0;
+    
+      const d = new Date(dateStr);
+      d.setHours(hour, 0, 0, 0);
+      return d;
+    }
+    
+    function checkoutToDateTime(dateStr, timeStr) {
+      return new Date(`${dateStr} ${timeStr}`);
+    }
+
+
+       /* =====================================================
+           🔴 OVERLAPPING STAY CHECK (CROSS-DAY)
+        ===================================================== */
+        
+        const newCheckInDT = slotToDateTime(selectedDate, selectedSlot);
+        
+        for (const d of bookingsSnap.docs) {
+          if (d.id === tempBookingId) continue;
+        
+          const b = d.data();
+        
+          // Only confirmed bookings block future stays
+          if (b.status !== "success") continue;
+        
+          // Only same physical room
+          if (String(b.roomId) !== String(roomId)) continue;
+        
+          if (!b.checkOutDate || !b.checkOutTime) continue;
+        
+          const existingCheckOutDT = checkoutToDateTime(
+            b.checkOutDate,
+            b.checkOutTime
+          );
+        
+          // 🚫 CORE HOTEL RULE: overlap
+          if (newCheckInDT < existingCheckOutDT) {
+            alert(
+              "This room is still occupied from a previous booking. Please select another slot or room."
+            );
+            await deleteDoc(tempRef);
+            navigate("/");
+            return;
+          }
+        }
+
+    
+
       /* =====================================================
          6️⃣ CREATE RAZORPAY ORDER (SERVER – VERCEL)
       ===================================================== */
