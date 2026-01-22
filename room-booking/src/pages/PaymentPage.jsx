@@ -107,6 +107,31 @@ export default function PaymentPage() {
         return;
       }
 
+
+      /* =====================================================
+         🔴 NEW: ROOM BOOKED IN ANOTHER SLOT SAME DATE
+        ===================================================== */
+        
+        for (const d of bookingsSnap.docs) {
+          if (d.id === tempBookingId) continue;
+        
+          const b = d.data();
+        
+          // Same physical room, same date, ANY slot
+          if (
+            b.roomId === roomId &&
+            b.date === selectedDate &&
+            b.status === "success"
+          ) {
+            alert(
+              "This room is already booked for this date in another time slot."
+            );
+            await deleteDoc(tempRef);
+            navigate("/");
+            return;
+          }
+        }
+
       /* =====================================================
          5️⃣ ROOM DOUBLE BOOK CHECK
       ===================================================== */
