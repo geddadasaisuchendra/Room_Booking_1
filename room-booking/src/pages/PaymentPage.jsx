@@ -86,7 +86,7 @@ export default function PaymentPage() {
         }
       });
 
-      if (bookedRoomsForDate > 4) {
+      if (bookedRoomsForDate >= 4) {
         alert("No rooms available for this date.");
         await deleteDoc(tempRef);
         navigate("/");
