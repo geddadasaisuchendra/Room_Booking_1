@@ -118,6 +118,10 @@ export default function PaymentPage() {
           const b = d.data();
         
           // Same physical room, same date, ANY slot
+          console.log("CHECK ROOM", {
+                        dbRoomId: b.roomId,
+                        localRoomId: roomId,
+          });
           if (
             b.roomId === roomId &&
             b.date === selectedDate &&
