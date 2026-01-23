@@ -78,69 +78,99 @@ useEffect(() => {
      2️⃣ User success
      3️⃣ User pending (not expired)
   ---------------------------------- */
+  function slotToDateTime(dateStr, slotStr) {
+  const [hourStr, meridiem] = slotStr.split(" ");
+  let hour = parseInt(hourStr, 10);
+
+  if (meridiem === "PM" && hour !== 12) hour += 12;
+  if (meridiem === "AM" && hour === 12) hour = 0;
+
+  const d = new Date(dateStr);
+  d.setHours(hour, 0, 0, 0);
+  return d;
+}
+
+function checkoutToDateTime(dateStr, timeStr) {
+  return new Date(`${dateStr} ${timeStr}`);
+}
+
   useEffect(() => {
-    if (!rooms.length) return;
+  if (!rooms.length) return;
 
-    async function loadRoomStatus() {
-      const now = new Date();
-      const statusMap = {};
+  async function loadRoomStatus() {
+    const now = new Date();
+    const statusMap = {};
 
-      // 🔹 Get all user bookings once
-      const bookingsSnap = await getDocs(collection(db, "userBookings"));
+    const newCheckInDT = slotToDateTime(selectedDate, checkInSlot);
 
-      for (const room of rooms) {
-        statusMap[room.id] = undefined; // default = available
+    // 🔹 Get all user bookings once
+    const bookingsSnap = await getDocs(collection(db, "userBookings"));
 
-        /* ---------- ADMIN BLOCK CHECK ---------- */
-        const adminRoomRef = doc(
-          db,
-          "bookings",
-          selectedDate,
-          "slots",
-          checkInSlot,
-          "rooms",
-          room.id
-        );
+    for (const room of rooms) {
+      statusMap[room.id] = undefined; // default = available
 
-        const adminRoomSnap = await getDoc(adminRoomRef);
+      /* ---------- ADMIN BLOCK CHECK ---------- */
+      const adminRoomRef = doc(
+        db,
+        "bookings",
+        selectedDate,
+        "slots",
+        checkInSlot,
+        "rooms",
+        room.id
+      );
 
-        if (
-          adminRoomSnap.exists() &&
-          adminRoomSnap.data().blockedBy === "admin"
-        ) {
-          statusMap[room.id] = "booked"; // 🔴 hard block
-          continue;
-        }
+      const adminRoomSnap = await getDoc(adminRoomRef);
 
-        /* ---------- USER BOOKINGS CHECK ---------- */
-        bookingsSnap.forEach((docSnap) => {
-          const b = docSnap.data();
-
-          if (
-            b.roomId === room.id &&
-            b.date === selectedDate &&
-            b.selectedSlot === checkInSlot
-          ) {
-            if (b.status === "success") {
-              statusMap[room.id] = "booked";
-            }
-
-            if (
-              b.status === "pending" &&
-              b.expiry &&
-              b.expiry.toDate() > now
-            ) {
-              statusMap[room.id] = "pending";
-            }
-          }
-        });
+      if (
+        adminRoomSnap.exists() &&
+        adminRoomSnap.data().blockedBy === "admin"
+      ) {
+        statusMap[room.id] = "booked";
+        continue;
       }
 
-      setRoomStatus(statusMap);
+      /* ---------- USER BOOKINGS + OVERLAP CHECK ---------- */
+      for (const docSnap of bookingsSnap.docs) {
+        const b = docSnap.data();
+
+        // Only confirmed bookings block inventory
+        if (b.status !== "success") continue;
+
+        // Only same physical room
+        if (String(b.roomId) !== String(room.id)) continue;
+
+        // --- SAME SLOT BLOCK ---
+        if (
+          b.date === selectedDate &&
+          b.selectedSlot === checkInSlot
+        ) {
+          statusMap[room.id] = "booked";
+          break;
+        }
+
+        // --- 🔴 CROSS-DAY OVERLAP BLOCK ---
+        if (b.checkOutDate && b.checkOutTime) {
+          const existingCheckOutDT = checkoutToDateTime(
+            b.checkOutDate,
+            b.checkOutTime
+          );
+
+          // If new check-in is before old checkout → still occupied
+          if (newCheckInDT < existingCheckOutDT) {
+            statusMap[room.id] = "booked";
+            break;
+          }
+        }
+      }
     }
 
-    loadRoomStatus();
-  }, [rooms, selectedDate, checkInSlot]);
+    setRoomStatus(statusMap);
+  }
+
+  loadRoomStatus();
+}, [rooms, selectedDate, checkInSlot]);
+
 
   /* ----------------------------------
      OPEN BOOKING MODAL
