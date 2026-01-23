@@ -56,93 +56,60 @@ export default function SlotSelectionPage() {
      LOAD SLOT AVAILABILITY
      (OPTIMIZED – PARALLEL READS)
   ----------------------------- */
- useEffect(() => {
-  if (!selectedDate || totalRooms === 0) return;
+  useEffect(() => {
+    if (!selectedDate || totalRooms === 0) return;
 
-  async function loadSlots() {
-    setLoading(true);
+    async function loadSlots() {
+      setLoading(true);
 
-    const statusMap = {};
-    const allSlots = [...amSlots, ...pmSlots];
+      const statusMap = {};
+      const allSlots = [...amSlots, ...pmSlots];
 
-    // Fetch bookings ONCE
-    const bookingsSnap = await getDocs(collection(db, "userBookings"));
+      // 1️⃣ Fetch user bookings ONCE
+      const bookingsSnap = await getDocs(collection(db, "userBookings"));
 
-    // Fetch admin blocks in parallel
-    const adminRoomPromises = allSlots.map((slot) =>
-      getDocs(
-        collection(db, "bookings", selectedDate, "slots", slot, "rooms")
-      )
-    );
+      // 2️⃣ Fetch all admin room blocks IN PARALLEL
+      const adminRoomPromises = allSlots.map((slot) =>
+        getDocs(
+          collection(db, "bookings", selectedDate, "slots", slot, "rooms")
+        )
+      );
 
-    const adminRoomResults = await Promise.all(adminRoomPromises);
+      const adminRoomResults = await Promise.all(adminRoomPromises);
 
-    // Helpers
-    function slotToDateTime(dateStr, slotStr) {
-      const [hourStr, meridiem] = slotStr.split(" ");
-      let hour = parseInt(hourStr, 10);
+      allSlots.forEach((slot, index) => {
+        let blockedRooms = 0;
 
-      if (meridiem === "PM" && hour !== 12) hour += 12;
-      if (meridiem === "AM" && hour === 12) hour = 0;
+        /* -------- ADMIN BLOCKED ROOMS -------- */
+        adminRoomResults[index].forEach((r) => {
+          if (r.data().blockedBy === "admin") {
+            blockedRooms++;
+          }
+        });
 
-      const d = new Date(dateStr);
-      d.setHours(hour, 0, 0, 0);
-      return d;
-    }
+        /* -------- USER SUCCESS BOOKINGS -------- */
+        bookingsSnap.forEach((bSnap) => {
+          const b = bSnap.data();
 
-    function checkoutToDateTime(dateStr, timeStr) {
-      return new Date(`${dateStr} ${timeStr}`);
-    }
+          if (
+            b.date === selectedDate &&
+            b.selectedSlot === slot &&
+            b.status === "success"
+          ) {
+            blockedRooms++;
+          }
+        });
 
-    allSlots.forEach((slot, index) => {
-      let blockedRooms = 0;
-      const slotDateTime = slotToDateTime(selectedDate, slot);
-
-      /* -------- ADMIN BLOCKED ROOMS -------- */
-      adminRoomResults[index].forEach((r) => {
-        if (r.data().blockedBy === "admin") {
-          blockedRooms++;
-        }
+        statusMap[slot] =
+          blockedRooms >= totalRooms ? "full" : "available";
       });
 
-      bookingsSnap.forEach((bSnap) => {
-        const b = bSnap.data();
+      setSlotStatus(statusMap);
+      setLoading(false);
+    }
 
-        if (b.status !== "success") return;
-
-        // SAME SLOT SAME DATE
-        if (
-          b.date === selectedDate &&
-          b.selectedSlot === slot
-        ) {
-          blockedRooms++;
-          return;
-        }
-
-        // 🔴 CROSS-DAY OVERLAP LOGIC
-        if (!b.checkOutDate || !b.checkOutTime) return;
-
-        const existingCheckOutDT = checkoutToDateTime(
-          b.checkOutDate,
-          b.checkOutTime
-        );
-
-        // If this slot starts before previous checkout → occupied
-        if (slotDateTime < existingCheckOutDT) {
-          blockedRooms++;
-        }
-      });
-
-      statusMap[slot] =
-        blockedRooms >= totalRooms ? "full" : "available";
-    });
-
-    setSlotStatus(statusMap);
-    setLoading(false);
-  }
-
-  loadSlots();
-}, [selectedDate, totalRooms]);
+    loadSlots();
+  }, [selectedDate, totalRooms]);
 
 
   /* -----------------------------
