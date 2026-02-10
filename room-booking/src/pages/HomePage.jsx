@@ -25,11 +25,11 @@ export default function HomePage() {
           <div className="rules-box">
           <ul>
             <li>Located just 1.5 km from the temple for quick and easy access</li>
-            <li>ree car parking available for all guests</li>
+            <li>free car parking available for all guests</li>
             <li>Complimentary pick-up and drop service between the room and temple (one round trip per stay)</li>
             <li>24-hour hot water for your comfort</li>
             <li>Power backup to ensure an uninterrupted stay</li>
-            
+            <br></br>
             <li>Booking can be done for one to two days.</li>
             <li>No cancellation, refund, or date/time change allowed.</li>
             <li>Each room can accommodate two to four adults.</li>
